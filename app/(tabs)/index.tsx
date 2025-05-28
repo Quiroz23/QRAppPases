@@ -2,12 +2,17 @@
 import React, { useState } from 'react';
 import { View, Text, Button, StyleSheet } from 'react-native';
 import QRScanner from './QRScanner';
+import QueryScanner from './QueryScanner';
 
 export default function App() {
-  const [mode, setMode] = useState<'Inasistencias' | 'Atrasos' | null>(null);
+  const [mode, setMode] = useState<'Inasistencias' | 'Atrasos' | 'Consultar' | null>(null);
 
-  if (mode) {
+  if (mode === 'Inasistencias' || mode === 'Atrasos') {
     return <QRScanner mode={mode} onBack={() => setMode(null)} />;
+  }
+
+  if (mode === 'Consultar') {
+    return <QueryScanner onBack={() => setMode(null)} />;
   }
 
   return (
@@ -16,6 +21,7 @@ export default function App() {
       <View style={styles.buttonContainer}>
         <Button title="Registrar Inasistencia" onPress={() => setMode('Inasistencias')} />
         <Button title="Registrar Atraso" onPress={() => setMode('Atrasos')} />
+        <Button title="Consultar Historial" onPress={() => setMode('Consultar')} />
       </View>
     </View>
   );
