@@ -30,3 +30,4 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
 });
+//https://docs.google.com/spreadsheets/d/1kteeNxa3ZihHFBWRkaEe3wOgKDGjMux59CLuJZDtD5o/edit?usp=sharing
