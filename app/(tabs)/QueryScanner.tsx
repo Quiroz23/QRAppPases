@@ -1,14 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
-  Alert,
   Text,
   View,
   Button,
+  Alert,
   StyleSheet,
+  ScrollView,
+  SafeAreaView,
   Platform,
   StatusBar,
-  SafeAreaView,
-  ScrollView,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import axios from 'axios';
@@ -17,11 +17,21 @@ interface QueryScannerProps {
   onBack: () => void;
 }
 
+interface Registro {
+  fecha: string;
+  tipo: string;
+  hora: string;
+  comentario?: string;
+}
+
 export default function QueryScanner({ onBack }: QueryScannerProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+  const [registros, setRegistros] = useState<Registro[]>([]);
+  const [nombreAlumno, setNombreAlumno] = useState<string>('');
   const cameraRef = useRef(null);
+
+  const baseURL = 'https://api.sheetbest.com/sheets/70d1a0d5-f650-4be5-ac69-f0757b8ce9ae';
 
   useEffect(() => {
     if (!permission?.granted) {
@@ -31,49 +41,32 @@ export default function QueryScanner({ onBack }: QueryScannerProps) {
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
     setScanned(true);
-    setResult(null);
 
     const lines = data.split('\n');
     const run = lines[0]?.replace('RUN: ', '').trim();
+    const nombre = lines[1]?.replace('Nombre: ', '').trim();
 
     if (!run) {
-      Alert.alert('❌ Error', 'No se pudo leer el RUN');
+      Alert.alert('❌ Error', 'RUN no válido');
       return;
     }
 
-    const sheetBestBaseUrl = 'https://api.sheetbest.com/sheets/70d1a0d5-f650-4be5-ac69-f0757b8ce9ae';
+    setNombreAlumno(nombre);
 
     try {
-      const [atrasosRes, inasistenciasRes] = await Promise.all([
-        axios.get(`${sheetBestBaseUrl}/tabs/Atrasos?run=${run}`),
-        axios.get(`${sheetBestBaseUrl}/tabs/Inasistencias?run=${run}`),
-      ]);
+      const res = await axios.get(`${baseURL}/tabs/Historial?run=${run}`);
 
-      const atrasos = atrasosRes.data[0];
-      const inasistencias = inasistenciasRes.data[0];
+      const historial: Registro[] = res.data.map((item: any) => ({
+        fecha: item.fecha,
+        tipo: item.tipo,
+        hora: item.hora,
+        comentario: item.comentario || '', // <- aquí se toma el comentario
+      }));
 
-      const historial: string[] = [];
-      if (atrasos) {
-        historial.push(
-          `✅ Atrasos: ${atrasos.total_registros || '1'}
-Fecha última: ${atrasos.fecha} a las ${atrasos.hora}`
-        );
-      }
-      if (inasistencias) {
-        historial.push(
-          `❌ Inasistencias: ${inasistencias.total_registros || '1'}
-Fecha última: ${inasistencias.fecha} a las ${inasistencias.hora}`
-        );
-      }
-
-      if (historial.length === 0) {
-        setResult('Este alumno no tiene registros.');
-      } else {
-        setResult(historial.join('\n\n'));
-      }
+      setRegistros(historial);
     } catch (error) {
-      console.error('Error consultando historial', error);
-      Alert.alert('❌ Error al consultar historial');
+      Alert.alert('❌ Error al obtener historial');
+      console.error(error);
     }
 
     setTimeout(() => setScanned(false), 3000);
@@ -86,20 +79,31 @@ Fecha última: ${inasistencias.fecha} a las ${inasistencias.hora}`
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <View style={styles.header}>
-        <Text style={styles.modeText}>Consulta de Historial</Text>
+        <Text style={styles.title}>Consulta de Historial</Text>
         <Button title="Volver" onPress={onBack} />
       </View>
+
       <CameraView
         ref={cameraRef}
-        style={{ flex: 1 }}
+        style={styles.camera}
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
       />
-      {result && (
-        <ScrollView style={styles.resultContainer}>
-          <Text style={styles.resultText}>{result}</Text>
-        </ScrollView>
-      )}
+
+      <ScrollView style={styles.scroll}>
+        <Text style={styles.subtitle}>Historial de: {nombreAlumno || 'Alumno no identificado'}</Text>
+        {registros.map((r, i) => (
+          <View key={i} style={styles.row}>
+            <Text style={styles.mainText}>{r.tipo} - {r.fecha} - {r.hora}</Text>
+            {r.comentario && (
+              <Text style={styles.commentText}>🗨️ {r.comentario}</Text>
+            )}
+          </View>
+        ))}
+        {registros.length === 0 && nombreAlumno && (
+          <Text style={{ textAlign: 'center', marginTop: 20 }}>No hay registros.</Text>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -109,23 +113,42 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 30 : 20,
     paddingBottom: 10,
     paddingHorizontal: 10,
-    backgroundColor: '#ddd',
+    backgroundColor: '#ccc',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     zIndex: 10,
   },
-  modeText: {
-    fontSize: 16,
+  title: {
+    fontSize: 18,
     fontWeight: 'bold',
   },
-  resultContainer: {
-    padding: 20,
-    backgroundColor: '#fff',
-    maxHeight: 200,
+  camera: {
+    height: 300,
   },
-  resultText: {
+  scroll: {
+    padding: 10,
+    backgroundColor: '#fff',
+    flex: 1,
+  },
+  subtitle: {
     fontSize: 16,
-    color: '#333',
+    fontWeight: '600',
+    marginVertical: 10,
+    textAlign: 'center',
+  },
+  row: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  mainText: {
+    fontSize: 14,
+  },
+  commentText: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    color: '#555',
+    marginTop: 4,
   },
 });

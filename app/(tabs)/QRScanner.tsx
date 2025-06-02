@@ -1,27 +1,21 @@
-import React, { useEffect, useRef, useState } from "react";
-import {
-  Alert,
-  Text,
-  View,
-  Button,
-  StyleSheet,
-  Platform,
-  StatusBar,
-  SafeAreaView,
-} from "react-native";
-import { CameraView, useCameraPermissions } from "expo-camera";
-import axios from "axios";
-import moment from "moment";
+import React, { useEffect, useState, useRef } from 'react';
+import { Text, View, Button, Alert, StyleSheet, TextInput } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import axios from 'axios';
+import moment from 'moment';
 
 interface QRScannerProps {
-  mode: "Inasistencias" | "Atrasos";
+  mode: 'Inasistencias' | 'Atrasos';
   onBack: () => void;
 }
 
 export default function QRScanner({ mode, onBack }: QRScannerProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const [comentario, setComentario] = useState('');
   const cameraRef = useRef(null);
+
+  const sheetBestBaseUrl = 'https://api.sheetbest.com/sheets/70d1a0d5-f650-4be5-ac69-f0757b8ce9ae';
 
   useEffect(() => {
     if (!permission?.granted) {
@@ -40,46 +34,35 @@ export default function QRScanner({ mode, onBack }: QRScannerProps) {
     const fecha = moment().format("YYYY-MM-DD");
     const hora = moment().format("HH:mm");
 
-    const sheetBestBaseUrl =
-      "https://api.sheetbest.com/sheets/70d1a0d5-f650-4be5-ac69-f0757b8ce9ae";
+    if (!run) {
+      Alert.alert("❌ Error", "RUN no válido");
+      return;
+    }
 
     try {
-      // Buscar registros con coincidencia exacta
-      const getResponse = await axios.get(`${sheetBestBaseUrl}/tabs/${mode}?run=${run}`);
-      const matchedRecord = getResponse.data.find((r: any) => r.run === run);
+      // Obtener registros existentes
+      const res = await axios.get(`${sheetBestBaseUrl}/tabs/${mode}?run=${run}`);
+      const existing = res.data;
+      let cantidad = 1;
 
-      if (matchedRecord) {
-        const updatedRecord = {
-          run,
-          nombre,
-          curso: `${grado}${curso}`,
-          fecha,
-          hora,
-          total_registros: parseInt(matchedRecord.total_registros || "1") + 1,
-          adicional: matchedRecord.adicional || "",
-        };
-
-        await axios.put(`${sheetBestBaseUrl}/tabs/${mode}/run/${run}`, updatedRecord);
-        Alert.alert(
-          "✅ Registro actualizado",
-          `Total de registros: ${updatedRecord.total_registros}`
-        );
-      } else {
-        const newRecord = {
-          run,
-          nombre,
-          curso: `${grado}${curso}`,
-          fecha,
-          hora,
-          total_registros: 1,
-          adicional: "",
-        };
-
-        await axios.post(`${sheetBestBaseUrl}/tabs/${mode}`, newRecord);
-        Alert.alert("✅ Alumno registrado con éxito", "Total de registros: 1");
+      if (existing.length > 0) {
+        const prev = existing[0];
+        cantidad = parseInt(prev.cantidad || '0') + 1;
+        await axios.delete(`${sheetBestBaseUrl}/tabs/${mode}/run/${run}`);
       }
 
-      // Registrar en historial
+      // Registrar en hoja de Inasistencias o Atrasos
+      await axios.post(`${sheetBestBaseUrl}/tabs/${mode}`, {
+        run,
+        nombre,
+        curso: `${grado}${curso}`,
+        fecha,
+        hora,
+        cantidad,
+        comentario,
+      });
+
+      // Registrar en Historial
       await axios.post(`${sheetBestBaseUrl}/tabs/Historial`, {
         run,
         nombre,
@@ -87,11 +70,14 @@ export default function QRScanner({ mode, onBack }: QRScannerProps) {
         fecha,
         hora,
         tipo: mode,
+        comentario,
       });
 
+      Alert.alert("✅ Registro exitoso", `${nombre} (${run}) ahora tiene ${cantidad} ${mode.toLowerCase()}`);
+      setComentario('');
     } catch (error) {
-      Alert.alert("❌ Error al registrar en la hoja");
-      console.error("ERROR:", error);
+      Alert.alert("❌ Error al registrar");
+      console.error(error);
     }
 
     setTimeout(() => setScanned(false), 3000);
@@ -102,34 +88,47 @@ export default function QRScanner({ mode, onBack }: QRScannerProps) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-      <View style={styles.header}>
-        <Text style={styles.modeText}>Modo actual: {mode}</Text>
-        <Button title="Volver" onPress={onBack} />
-      </View>
+    <View style={styles.container}>
       <CameraView
         ref={cameraRef}
-        style={{ flex: 1 }}
+        style={styles.camera}
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-        barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
       />
-    </SafeAreaView>
+      <View style={styles.controls}>
+        <Text style={styles.modeText}>Modo: {mode}</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Comentario adicional"
+          value={comentario}
+          onChangeText={setComentario}
+        />
+        <Button title="Volver" onPress={onBack} />
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight || 30) + 10 : 20,
-    paddingBottom: 10,
-    paddingHorizontal: 10,
-    backgroundColor: "#eee",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    zIndex: 10,
+  container: {
+    flex: 1,
+  },
+  camera: {
+    flex: 1,
+  },
+  controls: {
+    padding: 20,
+    backgroundColor: '#fff',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#999',
+    borderRadius: 5,
+    padding: 10,
+    marginVertical: 10,
   },
   modeText: {
-    fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: 'bold',
+    marginBottom: 5,
   },
 });

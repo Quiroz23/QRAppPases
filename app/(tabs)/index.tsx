@@ -1,11 +1,11 @@
-// app/index.tsx
 import React, { useState } from 'react';
 import { View, Text, Button, StyleSheet } from 'react-native';
 import QRScanner from './QRScanner';
 import QueryScanner from './QueryScanner';
+import JustifyScanner from './JustifyScanner'; // 👈 Asegúrate de tener este archivo
 
 export default function App() {
-  const [mode, setMode] = useState<'Inasistencias' | 'Atrasos' | 'Consultar' | null>(null);
+  const [mode, setMode] = useState<'Inasistencias' | 'Atrasos' | 'Consultar' | 'Justificar' | null>(null);
 
   if (mode === 'Inasistencias' || mode === 'Atrasos') {
     return <QRScanner mode={mode} onBack={() => setMode(null)} />;
@@ -15,6 +15,10 @@ export default function App() {
     return <QueryScanner onBack={() => setMode(null)} />;
   }
 
+  if (mode === 'Justificar') {
+    return <JustifyScanner onBack={() => setMode(null)} />;
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Seleccione una opción</Text>
@@ -22,6 +26,7 @@ export default function App() {
         <Button title="Registrar Inasistencia" onPress={() => setMode('Inasistencias')} />
         <Button title="Registrar Atraso" onPress={() => setMode('Atrasos')} />
         <Button title="Consultar Historial" onPress={() => setMode('Consultar')} />
+        <Button title="Justificar Registros" onPress={() => setMode('Justificar')} /> {/* Nuevo botón */}
       </View>
     </View>
   );
@@ -42,3 +47,4 @@ const styles = StyleSheet.create({
     gap: 20,
   },
 });
+ 
