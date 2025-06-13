@@ -1,5 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Text, View, Button, Alert, StyleSheet, TextInput } from 'react-native';
+import {
+  Text,
+  View,
+  Button,
+  Alert,
+  StyleSheet,
+  TextInput,
+  ActivityIndicator,
+} from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import axios from 'axios';
 import moment from 'moment';
@@ -9,86 +17,89 @@ interface QRScannerProps {
   onBack: () => void;
 }
 
+const API_URL = 'https://script.google.com/macros/s/AKfycbzvn9hOX-VNtY5BFPlTsYaesSjSliBu9BfQ7WpddVuMvjvw4xzoay_B24t7hEa-Zqg9yg/exec';
+
 export default function QRScanner({ mode, onBack }: QRScannerProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [comentario, setComentario] = useState('');
+  const [loading, setLoading] = useState(false);
   const cameraRef = useRef(null);
 
-  const sheetBestBaseUrl = 'https://api.sheetbest.com/sheets/70d1a0d5-f650-4be5-ac69-f0757b8ce9ae';
-
   useEffect(() => {
-    if (!permission?.granted) {
-      requestPermission();
-    }
+    if (!permission?.granted) requestPermission();
   }, [permission]);
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
     setScanned(true);
+    setLoading(true);
+    setComentario('');
 
-    const lines = data.split("\n");
-    const run = lines[0]?.replace("RUN: ", "").trim();
-    const nombre = lines[1]?.replace("Nombre: ", "").trim();
-    const grado = lines[2]?.replace("Grado: ", "").trim();
-    const curso = lines[3]?.replace("Curso: ", "").trim();
-    const fecha = moment().format("YYYY-MM-DD");
-    const hora = moment().format("HH:mm");
+    const [runLine, nombreLine, gradoLine, cursoLine] = data.split('\n');
+    const run = runLine?.replace('RUN: ', '').trim();
+    const nombre = nombreLine?.replace('Nombre: ', '').trim();
+    const grado = gradoLine?.replace('Grado: ', '').trim();
+    const curso = cursoLine?.replace('Curso: ', '').trim();
+    const fecha = moment().format('YYYY-MM-DD');
+    const hora = moment().format('HH:mm');
 
-    if (!run) {
-      Alert.alert("❌ Error", "RUN no válido");
+    if (!run || !nombre) {
+      Alert.alert('❌ Error', 'Formato de QR inválido');
+      setLoading(false);
       return;
     }
 
     try {
-      // Obtener registros existentes
-      const res = await axios.get(`${sheetBestBaseUrl}/tabs/${mode}?run=${run}`);
-      const existing = res.data;
-      let cantidad = 1;
+      // 1) Verificar duplicado usando tu Apps Script
+      const query = `?accion=obtener&sheet=Historial&run=${encodeURIComponent(run)}&fecha=${encodeURIComponent(fecha)}&tipo=${encodeURIComponent(mode)}`;
+      // Para atrasos, incluimos hora
+      const existsUrl = mode === 'Atrasos'
+        ? `${API_URL}${query}&hora=${encodeURIComponent(hora)}`
+        : `${API_URL}${query}`;
 
-      if (existing.length > 0) {
-        const prev = existing[0];
-        cantidad = parseInt(prev.cantidad || '0') + 1;
-        await axios.delete(`${sheetBestBaseUrl}/tabs/${mode}/run/${run}`);
+      const existsRes = await axios.get(existsUrl);
+
+      if (mode === 'Inasistencias' && existsRes.data.length > 0) {
+        Alert.alert('⚠️ Ya registrado', 'Este alumno ya tiene una inasistencia hoy.');
+        setLoading(false);
+        setTimeout(() => setScanned(false), 1000);
+        return;
       }
 
-      // Registrar en hoja de Inasistencias o Atrasos
-      await axios.post(`${sheetBestBaseUrl}/tabs/${mode}`, {
-        run,
-        nombre,
-        curso: `${grado}${curso}`,
-        fecha,
-        hora,
-        cantidad,
-        comentario,
-      });
-
-      // Registrar en Historial
-      await axios.post(`${sheetBestBaseUrl}/tabs/Historial`, {
+      // 2) Registrar en Historial
+      await axios.post(`${API_URL}?accion=agregar&sheet=Historial`, {
         run,
         nombre,
         curso: `${grado}${curso}`,
         fecha,
         hora,
         tipo: mode,
+        justificado: 'No',
         comentario,
       });
 
-      Alert.alert("✅ Registro exitoso", `${nombre} (${run}) ahora tiene ${cantidad} ${mode.toLowerCase()}`);
-      setComentario('');
-    } catch (error) {
-      Alert.alert("❌ Error al registrar");
-      console.error(error);
+      Alert.alert('✅ Registro exitoso', `${nombre} fue registrado como ${mode.toLowerCase()}.`);
+    } catch (err) {
+      console.error(err);
+      Alert.alert('❌ Error al registrar');
     }
 
-    setTimeout(() => setScanned(false), 3000);
+    setLoading(false);
+    setTimeout(() => setScanned(false), 1000);
   };
 
   if (!permission?.granted) {
-    return <Text>Solicitando permiso de cámara...</Text>;
+    return <Text>📷 Solicitando permiso de cámara...</Text>;
   }
 
   return (
     <View style={styles.container}>
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#0000ff" />
+          <Text>Registrando...</Text>
+        </View>
+      )}
       <CameraView
         ref={cameraRef}
         style={styles.camera}
@@ -110,16 +121,9 @@ export default function QRScanner({ mode, onBack }: QRScannerProps) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  camera: {
-    flex: 1,
-  },
-  controls: {
-    padding: 20,
-    backgroundColor: '#fff',
-  },
+  container: { flex: 1 },
+  camera: { flex: 1 },
+  controls: { padding: 20, backgroundColor: '#fff' },
   input: {
     borderWidth: 1,
     borderColor: '#999',
@@ -127,8 +131,15 @@ const styles = StyleSheet.create({
     padding: 10,
     marginVertical: 10,
   },
-  modeText: {
-    fontWeight: 'bold',
-    marginBottom: 5,
+  modeText: { fontWeight: 'bold', marginBottom: 5 },
+  loadingOverlay: {
+    position: 'absolute',
+    top: '40%',
+    alignSelf: 'center',
+    backgroundColor: '#ffffffcc',
+    padding: 20,
+    borderRadius: 8,
+    zIndex: 100,
+    alignItems: 'center',
   },
 });

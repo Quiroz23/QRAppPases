@@ -9,6 +9,9 @@ import {
   StatusBar,
   SafeAreaView,
   ScrollView,
+  ActivityIndicator,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import axios from 'axios';
@@ -18,168 +21,219 @@ interface JustifyScannerProps {
 }
 
 interface Registro {
+  id: number;
+  run: string;
   fecha: string;
   tipo: string;
   hora: string;
   justificado: boolean;
+  nombre: string;
+  curso: string;
 }
 
 export default function JustifyScanner({ onBack }: JustifyScannerProps) {
   const [permission, requestPermission] = useCameraPermissions();
-  const [scanned, setScanned] = useState(false);
   const [records, setRecords] = useState<Registro[]>([]);
   const [run, setRun] = useState<string>('');
-
+  const [scanned, setScanned] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [comment, setComment] = useState('');
+  const [toJustify, setToJustify] = useState<Registro | null>(null);
   const cameraRef = useRef(null);
-  const baseURL = 'https://api.sheetbest.com/sheets/70d1a0d5-f650-4be5-ac69-f0757b8ce9ae';
+
+  const sheetURL = 'https://api.sheetbest.com/sheets/70d1a0d5-f650-4be5-ac69-f0757b8ce9ae';
+
+  const normalize = (str: any) => (str || '').trim().toLowerCase();
 
   useEffect(() => {
-    if (!permission?.granted) {
-      requestPermission();
-    }
+    setRecords([]);
+    setRun('');
+  }, []);
+
+  useEffect(() => {
+    if (!permission?.granted) requestPermission();
   }, [permission]);
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
     setScanned(true);
+    setLoading(true);
+    setRecords([]);
+    setRun('');
 
     const lines = data.split('\n');
-    const scannedRun = lines[0]?.replace('RUN: ', '').trim();
-
+    const scannedRun = lines[0]?.replace('RUN: ', '').trim().toLowerCase();
     if (!scannedRun) {
       Alert.alert('❌ Error', 'RUN no válido');
+      setLoading(false);
+      setScanned(false);
       return;
     }
-
     setRun(scannedRun);
 
     try {
-      const historialRes = await axios.get(`${baseURL}/tabs/Historial?run=${scannedRun}`);
-      const justRes = await axios.get(`${baseURL}/tabs/Justificaciones?run=${scannedRun}`);
+      const [histRes, justRes] = await Promise.all([
+        axios.get(`${sheetURL}/tabs/Historial?run=${encodeURIComponent(scannedRun)}`),
+        axios.get(`${sheetURL}/tabs/Justificaciones?run=${encodeURIComponent(scannedRun)}`)
+      ]);
 
-      const clavesJustificadas = new Set(
+      const justKeys = new Set(
         justRes.data
-          .filter((j: any) => j.firmado === 'Sí')
-          .map((j: any) => `${j.fecha}-${j.hora}-${j.tipo}`)
+          .filter((j: any) =>
+            normalize(j.run) === scannedRun &&
+            j.comentario && normalize(j.comentario) !== ''
+          )
+          .map((j: any) => `${normalize(j.fecha)}|${normalize(j.hora)}|${normalize(j.tipo)}`)
       );
 
-      const registrosFiltrados: Registro[] = historialRes.data.map((item: any) => ({
-        fecha: item.fecha,
-        tipo: item.tipo,
-        hora: item.hora,
-        justificado: clavesJustificadas.has(`${item.fecha}-${item.hora}-${item.tipo}`),
-      }));
+      const filteredHist = histRes.data.filter(
+        (item: any) => normalize(item.run) === scannedRun
+      );
 
-      setRecords(registrosFiltrados);
-    } catch (err) {
-      console.error('❌ Error al obtener datos:', err);
-      Alert.alert('❌ Error al obtener datos del historial');
-    }
+      const regs: Registro[] = filteredHist
+        .filter((item: any) =>
+          !justKeys.has(`${normalize(item.fecha)}|${normalize(item.hora)}|${normalize(item.tipo)}`)
+        )
+        .map((item: any, idx: number) => ({
+          id: idx,
+          run: scannedRun,
+          fecha: item.fecha,
+          tipo: item.tipo,
+          hora: item.hora,
+          justificado: false,
+          nombre: item.nombre,
+          curso: item.curso,
+        }));
 
-    setTimeout(() => setScanned(false), 3000);
-  };
+      setRecords(regs);
 
-  const justifyRecord = async (fecha: string, hora: string, tipo: string) => {
-    try {
-      // ✅ Eliminar desde hoja Atrasos/Inasistencias
-      await axios.delete(`${baseURL}/tabs/${tipo}?run=${run}&fecha=${fecha}&hora=${hora}`);
-
-      // ✅ Buscar en historial
-      const historialRes = await axios.get(`${baseURL}/tabs/Historial?run=${run}&fecha=${fecha}&hora=${hora}&tipo=${tipo}`);
-      const registro = historialRes.data[0];
-
-      if (!registro) {
-        Alert.alert("⚠️ Registro no encontrado en Historial");
-        return;
+      // ✅ MODIFICACIÓN IMPLEMENTADA
+      if (filteredHist.length > 0 && regs.length === 0) {
+        Alert.alert('✅ Todos los registros están justificados');
       }
 
-      const dataToSend = {
-        run: run || "NO RUN", // ⚠️ Simulación de error si run está vacío
-        nombre: registro.nombre || "Desconocido",
-        curso: registro.curso || "Sin Curso",
-        tipo,
-        fecha,
-        hora,
-        justificado: "Sí",
-        tutor: "Apoderado directo",
-        comentario: "Justificación entregada en oficina"
-      };
-
-      console.log("📝 Enviando justificación a SheetBest:", dataToSend);
-
-      // 🔥 SIMULACIÓN de error opcional
-      // dataToSend.tipo = undefined; // <- Descomenta para probar un error 400 real
-
-      await axios.post(`${baseURL}/tabs/Justificaciones`, dataToSend);
-
-      Alert.alert("✅ Registro Justificado", `${tipo} del ${fecha} a las ${hora} fue justificado.`);
-
-      setRecords(prev =>
-        prev.map(r =>
-          r.fecha === fecha && r.tipo === tipo && r.hora === hora
-            ? { ...r, justificado: true }
-            : r
-        )
-      );
-    } catch (err: any) {
-      console.error('❌ Error al justificar:', err.response?.data || err.message);
-      Alert.alert("❌ Error al justificar", "Revisa la consola para más información.");
+    } catch (e) {
+      console.error(e);
+      Alert.alert('❌ No se pudo obtener historial');
     }
+
+    setLoading(false);
+    setTimeout(() => setScanned(false), 1000);
   };
 
-  if (!permission?.granted) {
-    return <Text>Solicitando permiso de cámara...</Text>;
-  }
+  const openJustifyModal = (r: Registro) => {
+    setToJustify(r);
+    setComment('');
+    setModalVisible(true);
+  };
+
+  const confirmJustify = async () => {
+    if (!toJustify || !comment.trim()) {
+      Alert.alert('❌ Escribe el nombre del apoderado');
+      return;
+    }
+    setModalVisible(false);
+    setLoading(true);
+    try {
+      await axios.post(`${sheetURL}/tabs/Justificaciones`, {
+        run: toJustify.run,
+        nombre: toJustify.nombre,
+        curso: toJustify.curso,
+        fecha: toJustify.fecha,
+        hora: toJustify.hora,
+        tipo: toJustify.tipo,
+        justificado: 'Sí',
+        comentario: comment.trim(),
+      });
+      setRecords(prev =>
+        prev.filter(r =>
+          !(r.fecha === toJustify.fecha && r.hora === toJustify.hora && r.tipo === toJustify.tipo)
+        )
+      );
+      Alert.alert('✅ Justificado', `${toJustify.tipo} del ${toJustify.fecha}`);
+    } catch (e) {
+      console.error(e);
+      Alert.alert('❌ Error al justificar');
+    }
+    setLoading(false);
+  };
+
+  if (!permission?.granted) return <Text>📷 Solicitando permiso...</Text>;
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <View style={styles.header}>
-        <Text style={styles.modeText}>Justificar Registro</Text>
-        <Button title="Volver" onPress={onBack} />
+        <Text style={styles.modeText}>Justificar Registros</Text>
+        <Button title="Volver" onPress={() => { setRecords([]); onBack(); }} />
       </View>
+      {loading && (
+        <View style={styles.loader}>
+          <ActivityIndicator size="large" />
+          <Text>Cargando...</Text>
+        </View>
+      )}
       <CameraView
         ref={cameraRef}
         style={{ flex: 1 }}
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
       />
-      <ScrollView style={{ maxHeight: 300, backgroundColor: '#fff' }}>
-        {records.map((r, i) => (
-          <View key={i} style={styles.recordRow}>
-            <View style={{ flex: 1 }}>
-              <Text>{`${r.tipo} - ${r.fecha} - ${r.hora}`}</Text>
-              <Text>{r.justificado ? '✅ Justificado' : '❌ No justificado'}</Text>
+      <ScrollView style={styles.list}>
+        {records.length === 0 && !loading && <Text style={styles.empty}>No hay registros pendientes</Text>}
+        {records.map(r => (
+          <View key={r.id} style={styles.item}>
+            <View>
+              <Text>{r.nombre} ({r.curso})</Text>
+              <Text>{r.tipo} • {r.fecha} {r.hora}</Text>
+              <Text>❌ Pendiente</Text>
             </View>
-            {!r.justificado && (
-              <Button title="Justificar" onPress={() => justifyRecord(r.fecha, r.hora, r.tipo)} />
-            )}
+            <Button title="Justificar" onPress={() => openJustifyModal(r)} />
           </View>
         ))}
       </ScrollView>
+      <Modal visible={modalVisible} transparent animationType="slide">
+        <View style={styles.modalBg}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Nombre del apoderado</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Escribe el nombre del apoderado"
+              value={comment}
+              onChangeText={setComment}
+            />
+            <View style={styles.modalBtns}>
+              <Button title="Cancelar" onPress={() => setModalVisible(false)} />
+              <Button title="OK" onPress={confirmJustify} />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   header: {
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 30 : 20,
-    paddingBottom: 10,
-    paddingHorizontal: 10,
-    backgroundColor: '#ccc',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  modeText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  recordRow: {
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 20,
     padding: 10,
-    borderBottomColor: '#eee',
-    borderBottomWidth: 1,
+    backgroundColor: '#ddd',
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    justifyContent: 'space-between'
   },
+  modeText: { fontSize: 18, fontWeight: 'bold' },
+  loader: { position: 'absolute', top: '40%', alignSelf: 'center' },
+  list: { maxHeight: 300, backgroundColor: '#fff' },
+  empty: { textAlign: 'center', margin: 20 },
+  item: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderColor: '#eee',
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  modalBg: { flex: 1, backgroundColor: '#00000088', justifyContent: 'center', alignItems: 'center' },
+  modal: { width: '80%', backgroundColor: '#fff', padding: 20, borderRadius: 8 },
+  modalTitle: { fontWeight: 'bold', marginBottom: 10 },
+  modalInput: { borderWidth: 1, borderColor: '#aaa', borderRadius: 5, padding: 8, marginBottom: 15 },
+  modalBtns: { flexDirection: 'row', justifyContent: 'space-between' },
 });
