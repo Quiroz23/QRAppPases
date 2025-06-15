@@ -50,23 +50,7 @@ export default function QRScanner({ mode, onBack }: QRScannerProps) {
     }
 
     try {
-      // 1) Verificar duplicado usando tu Apps Script
-      const query = `?accion=obtener&sheet=Historial&run=${encodeURIComponent(run)}&fecha=${encodeURIComponent(fecha)}&tipo=${encodeURIComponent(mode)}`;
-      // Para atrasos, incluimos hora
-      const existsUrl = mode === 'Atrasos'
-        ? `${API_URL}${query}&hora=${encodeURIComponent(hora)}`
-        : `${API_URL}${query}`;
-
-      const existsRes = await axios.get(existsUrl);
-
-      if (mode === 'Inasistencias' && existsRes.data.length > 0) {
-        Alert.alert('⚠️ Ya registrado', 'Este alumno ya tiene una inasistencia hoy.');
-        setLoading(false);
-        setTimeout(() => setScanned(false), 1000);
-        return;
-      }
-
-      // 2) Registrar en Historial
+      // ✅ Registrar en Historial (sin validar duplicados)
       await axios.post(`${API_URL}?accion=agregar&sheet=Historial`, {
         run,
         nombre,
