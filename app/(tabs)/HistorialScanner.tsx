@@ -128,7 +128,6 @@ export default function HistorialScanner({ onBack }: HistorialScannerProps) {
           <Text>Cargando...</Text>
         </View>
       )}
-
       <CameraView
         ref={cameraRef}
         style={{ flex: 1 }}
