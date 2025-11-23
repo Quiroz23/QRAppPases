@@ -27,8 +27,8 @@ interface Registro {
   nombre: string;
   curso: string;
   esJustificado: boolean;
-  comentario?: string;           // apoderado
-  fechaJustificacion?: string;   // fecha de justificación
+  comentario?: string;           
+  fechaJustificacion?: string;   
 }
 
 export default function HistorialScanner({ onBack }: HistorialScannerProps) {
