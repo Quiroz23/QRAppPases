@@ -1,50 +1,83 @@
-# Welcome to your Expo app 👋
+# 🌳 Árbol de la Vida - Sistema de Control de Pases (QRAppPases)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+> Aplicación móvil desarrollada para la Práctica Profesional, diseñada para digitalizar y agilizar el control de asistencia, atrasos y justificaciones escolares mediante tecnología QR.
 
-## Get started
+[![GitHub Repo](https://img.shields.io/badge/GitHub-Ver_Repositorio-black?logo=github)](https://github.com/Quiroz23/QRAppPases)
+![Estado](https://img.shields.io/badge/Estado-Completado-success)
+![Lenguaje](https://img.shields.io/badge/Lenguaje-TypeScript-blue)
+![Stack](https://img.shields.io/badge/Stack-Expo_%7C_React_Native_%7C_Google_Sheets-61DAFB)
 
-1. Install dependencies
+## 📖 Descripción Técnica
 
-   ```bash
-   npm install
-   ```
+**QRAppPases** es una solución móvil integral que permite a los inspectores y personal administrativo gestionar el flujo de estudiantes en tiempo real. La aplicación moderniza los registros manuales mediante el escaneo de credenciales con códigos QR.
 
-2. Start the app
+El sistema opera bajo una arquitectura **Serverless** híbrida:
+1.  **Lectura:** Utiliza **SheetBest API** para consultas rápidas de historiales.
+2.  **Escritura:** Conecta con **Google Apps Script** para el registro seguro de transacciones.
+3.  **Base de Datos:** Google Sheets como backend en la nube.
 
-   ```bash
-   npx expo start
-   ```
+## ⚙️ Módulos Principales
 
-In the output, you'll find options to open the app in a
+La aplicación cuenta con una navegación basada en pestañas (`Expo Router`) que orquesta tres flujos clave:
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### 1. 📷 Escáner de Incidencias (`QRScanner`)
+Permite el ingreso rápido de datos validando el formato del QR institucional.
+* **Modos:** Inasistencias y Atrasos.
+* **Funcionamiento:** Escanea el QR (RUN, Nombre, Curso), añade un comentario opcional y envía la transacción vía API.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### 2. ✅ Gestión de Justificaciones (`JustifyScanner`)
+Herramienta para regularizar la situación del estudiante.
+* **Lógica de Cruce:** Realiza una consulta paralela (`Promise.all`) entre el historial de faltas y el registro de justificaciones.
+* **Filtrado Inteligente:** Muestra en la UI únicamente las incidencias que aún no han sido justificadas.
+* **Acción:** Registra el nombre del apoderado y la fecha, actualizando el estado en tiempo real.
 
-## Get a fresh project
+### 3. 📋 Historial del Estudiante (`HistorialScanner`)
+Visualización completa del comportamiento del alumno.
+* **Interfaz:** Lista cronológica con indicadores visuales de estado (✅ Justificado / ❌ Pendiente).
+* **Detalle:** Despliega metadatos como fecha, hora y comentarios asociados.
 
-When you're ready, run:
+## 🛠️ Tecnologías Utilizadas
 
-```bash
-npm run reset-project
-```
+### Frontend (Móvil)
+* **Core:** [React Native](https://reactnative.dev/) + [Expo SDK](https://expo.dev/)
+* **Lenguaje:** TypeScript (Interfaces estrictas para `Registro`, `Props`).
+* **Cámara:** `expo-camera` (Componente `CameraView`).
+* **Navegación:** Expo Router (File-based routing).
+* **Http Client:** Axios.
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Backend (Data Layer)
+* **Base de Datos:** Google Sheets.
+* **APIs:** SheetBest (JSON API) + Google Apps Script (Macro Web App).
 
-## Learn more
+## 🚀 Instalación y Despliegue
 
-To learn more about developing your project with Expo, look at the following resources:
+Sigue estos pasos para ejecutar el proyecto localmente:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+1.  **Clonar el repositorio:**
+    ```bash
+    git clone [https://github.com/Quiroz23/QRAppPases.git](https://github.com/Quiroz23/QRAppPases.git)
+    cd QRAppPases
+    ```
 
-## Join the community
+2.  **Instalar dependencias:**
+    ```bash
+    npm install
+    ```
 
-Join our community of developers creating universal apps.
+3.  **Ejecutar la aplicación:**
+    ```bash
+    npx expo start
+    ```
+    * Escanea el código QR resultante con la app **Expo Go** en tu dispositivo Android/iOS.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## 📂 Estructura del Código
+
+```text
+/app
+├── (tabs)/
+│   ├── index.tsx           # Dashboard principal
+│   ├── QRScanner.tsx       # Lógica de escaneo y POST request
+│   ├── JustifyScanner.tsx  # Lógica de validación y cruce de datos
+│   └── HistorialScanner.tsx# Visualización de registros
+├── components/             # Componentes UI reutilizables
+└── hooks/                  # Custom hooks (useColorScheme, etc.)
