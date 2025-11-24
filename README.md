@@ -1,57 +1,73 @@
 # 🌳 Árbol de la Vida - Sistema de Control de Pases (QRAppPases)
 
-> Aplicación móvil desarrollada para la Práctica Profesional, diseñada para digitalizar y agilizar el control de asistencia, atrasos y justificaciones escolares mediante tecnología QR.
+> Sistema integral para la gestión de asistencia, atrasos y justificaciones escolares mediante códigos QR, utilizando una arquitectura Serverless con Google Sheets.
 
 [![GitHub Repo](https://img.shields.io/badge/GitHub-Ver_Repositorio-black?logo=github)](https://github.com/Quiroz23/QRAppPases)
 ![Estado](https://img.shields.io/badge/Estado-Completado-success)
-![Lenguaje](https://img.shields.io/badge/Lenguaje-TypeScript-blue)
-![Stack](https://img.shields.io/badge/Stack-Expo_%7C_React_Native_%7C_Google_Sheets-61DAFB)
+![Stack](https://img.shields.io/badge/Stack-Expo_%7C_Google_Apps_Script-ffca28)
+![Database](https://img.shields.io/badge/Database-Google_Sheets-34A853)
 
 ## 📖 Descripción Técnica
 
-**QRAppPases** es una solución móvil integral que permite a los inspectores y personal administrativo gestionar el flujo de estudiantes en tiempo real. La aplicación moderniza los registros manuales mediante el escaneo de credenciales con códigos QR.
+**QRAppPases** es una solución móvil que moderniza el registro de inspectores escolares. Reemplaza las bitácoras de papel por un sistema digital que escanea credenciales QR, permitiendo un flujo de datos en tiempo real entre el patio de la escuela y la administración.
 
-El sistema opera bajo una arquitectura **Serverless** híbrida:
-1.  **Lectura:** Utiliza **SheetBest API** para consultas rápidas de historiales.
-2.  **Escritura:** Conecta con **Google Apps Script** para el registro seguro de transacciones.
-3.  **Base de Datos:** Google Sheets como backend en la nube.
+El proyecto implementa una arquitectura **Backend-as-a-Service (BaaS)** personalizada:
+1.  **Frontend:** App móvil en React Native (Expo) con TypeScript.
+2.  **Backend:** API RESTful construida con **Google Apps Script**.
+3.  **Base de Datos:** Google Sheets actuando como sistema de persistencia relacional.
 
-## ⚙️ Módulos Principales
+## 🗄️ Esquema de Base de Datos (Google Sheets)
 
-La aplicación cuenta con una navegación basada en pestañas (`Expo Router`) que orquesta tres flujos clave:
+El sistema utiliza un libro de cálculo con dos hojas principales (`Historial` y `Justificaciones`) que siguen la siguiente estructura de columnas:
 
-### 1. 📷 Escáner de Incidencias (`QRScanner`)
-Permite el ingreso rápido de datos validando el formato del QR institucional.
-* **Modos:** Inasistencias y Atrasos.
-* **Funcionamiento:** Escanea el QR (RUN, Nombre, Curso), añade un comentario opcional y envía la transacción vía API.
+| Columna | Tipo | Descripción | Ejemplo |
+| :--- | :--- | :--- | :--- |
+| `run` | String | Identificador único del estudiante | `12345678-9` |
+| `nombre` | String | Nombre completo | `Juan Pérez` |
+| `curso` | String | Curso y letra | `4° medioB` |
+| `hora` | Time | Hora del registro | `10:03` |
+| `fecha` | Date | Fecha del evento (YYYY-MM-DD) | `2025-07-14` |
+| `tipo` | String | Categoría del evento | `Inasistencias` / `Atrasos` |
+| `justificado` | String/Bool | Estado de la falta | `Sí` / `No` |
+| `comentario` | String | Observación opcional | `Llega sin pase` |
+| `fecha_justic.`| Date | Fecha cuando se regularizó | `2025-07-15` |
 
-### 2. ✅ Gestión de Justificaciones (`JustifyScanner`)
-Herramienta para regularizar la situación del estudiante.
-* **Lógica de Cruce:** Realiza una consulta paralela (`Promise.all`) entre el historial de faltas y el registro de justificaciones.
-* **Filtrado Inteligente:** Muestra en la UI únicamente las incidencias que aún no han sido justificadas.
-* **Acción:** Registra el nombre del apoderado y la fecha, actualizando el estado en tiempo real.
+## ☁️ Configuración del Backend (API)
 
-### 3. 📋 Historial del Estudiante (`HistorialScanner`)
-Visualización completa del comportamiento del alumno.
-* **Interfaz:** Lista cronológica con indicadores visuales de estado (✅ Justificado / ❌ Pendiente).
-* **Detalle:** Despliega metadatos como fecha, hora y comentarios asociados.
+El proyecto incluye un script de Google Apps Script (`backend.gs`) que expone los siguientes endpoints:
 
-## 🛠️ Tecnologías Utilizadas
+### Endpoints Disponibles
 
-### Frontend (Móvil)
-* **Core:** [React Native](https://reactnative.dev/) + [Expo SDK](https://expo.dev/)
-* **Lenguaje:** TypeScript (Interfaces estrictas para `Registro`, `Props`).
-* **Cámara:** `expo-camera` (Componente `CameraView`).
-* **Navegación:** Expo Router (File-based routing).
-* **Http Client:** Axios.
+* **`GET`**: Obtiene registros filtrados por RUT.
+    * *Params:* `?run=123...&sheet=Historial`
+* **`POST`**: Inserta una nueva fila (Inasistencia o Atraso).
+    * *Body:* JSON con los campos coincidentes a las cabeceras del Excel.
+* **`PATCH`**: Actualiza el estado de `justificado` de un registro específico.
 
-### Backend (Data Layer)
-* **Base de Datos:** Google Sheets.
-* **APIs:** SheetBest (JSON API) + Google Apps Script (Macro Web App).
+### Instalación del Backend
+Para replicar el servidor:
+1.  Crear una nueva hoja de cálculo en Google Sheets.
+2.  Nombrar las hojas como `Historial` y `Justificaciones`.
+3.  Ir a **Extensiones > Apps Script**.
+4.  Copiar el contenido del archivo `backend.gs` (incluido en este repo).
+5.  Desplegar como aplicación web (**Deploy > New Deployment**):
+    * *Execute as:* Me.
+    * *Who has access:* **Anyone** (Importante para que la App móvil pueda acceder).
 
-## 🚀 Instalación y Despliegue
+## ⚙️ Módulos de la Aplicación Móvil
 
-Sigue estos pasos para ejecutar el proyecto localmente:
+### 1. 📷 Registro (`QRScanner`)
+Motor de escaneo optimizado. Parsea la data del código QR (Run, Nombre, Curso) y envía una petición `POST` al script de Google para registrar la incidencia instantáneamente.
+
+### 2. ✅ Justificación Inteligente (`JustifyScanner`)
+Módulo de auditoría. Cruza la información del historial con las justificaciones existentes.
+* **Lógica:** Descarga ambos historiales y filtra localmente para mostrar solo aquello que está "Pendiente" (Rojo).
+* **Acción:** Al justificar, envía los datos del apoderado y actualiza el estado a "Justificado" (Verde).
+
+### 3. 📋 Visualizador (`HistorialScanner`)
+Interfaz de usuario para revisar el comportamiento del alumno, diferenciando visualmente las faltas regularizadas de las pendientes.
+
+## 🚀 Instalación del Frontend
 
 1.  **Clonar el repositorio:**
     ```bash
@@ -64,20 +80,10 @@ Sigue estos pasos para ejecutar el proyecto localmente:
     npm install
     ```
 
-3.  **Ejecutar la aplicación:**
+3.  **Configurar Variables:**
+    * Reemplazar la URL `API_URL` en los archivos de servicio con la URL de tu propio despliegue de Google Apps Script.
+
+4.  **Ejecutar:**
     ```bash
     npx expo start
     ```
-    * Escanea el código QR resultante con la app **Expo Go** en tu dispositivo Android/iOS.
-
-## 📂 Estructura del Código
-
-```text
-/app
-├── (tabs)/
-│   ├── index.tsx           # Dashboard principal
-│   ├── QRScanner.tsx       # Lógica de escaneo y POST request
-│   ├── JustifyScanner.tsx  # Lógica de validación y cruce de datos
-│   └── HistorialScanner.tsx# Visualización de registros
-├── components/             # Componentes UI reutilizables
-└── hooks/                  # Custom hooks (useColorScheme, etc.)
