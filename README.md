@@ -220,14 +220,6 @@ Este proyecto está bajo la Licencia MIT. Ver `LICENSE` para más información.
 
 ---
 
-## 🙏 Agradecimientos
-
-- [Supabase](https://supabase.com) por el backend gratuito
-- [Expo](https://expo.dev) por simplificar React Native
-- [Vercel](https://vercel.com) por el hosting gratuito
-
----
-
 ## 📞 Soporte
 
 ¿Tienes preguntas? Abre un [issue](https://github.com/Quiroz23/QRAppPases/issues)
