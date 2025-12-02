@@ -1,34 +1,35 @@
+import { supabase } from '@/lib/supabase';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
-  Text,
-  View,
   Button,
-  StyleSheet,
   Platform,
-  StatusBar,
   SafeAreaView,
   ScrollView,
-  ActivityIndicator,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import axios from 'axios';
 
 interface HistorialScannerProps {
   onBack: () => void;
 }
 
 interface Registro {
-  id: number;
+  registro_id: string;
   run: string;
   fecha: string;
   tipo: string;
   hora: string;
   nombre: string;
   curso: string;
-  esJustificado: boolean;
-  comentario?: string;           
-  fechaJustificacion?: string;   
+  justificado: string;
+  comentario?: string;
+  apoderado?: string;
+  fecha_justificacion?: string;
 }
 
 export default function HistorialScanner({ onBack }: HistorialScannerProps) {
@@ -37,9 +38,6 @@ export default function HistorialScanner({ onBack }: HistorialScannerProps) {
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
   const cameraRef = useRef(null);
-
-  const baseURL = 'https://api.sheetbest.com/sheets/70d1a0d5-f650-4be5-ac69-f0757b8ce9ae';
-  const normalize = (str: any) => (str || '').trim().toLowerCase();
 
   useEffect(() => {
     if (!permission?.granted) requestPermission();
@@ -52,6 +50,7 @@ export default function HistorialScanner({ onBack }: HistorialScannerProps) {
 
     const lines = data.split('\n');
     const scannedRun = lines[0]?.replace('RUN: ', '').trim().toLowerCase();
+
     if (!scannedRun) {
       Alert.alert('❌ Error', 'RUN no válido');
       setLoading(false);
@@ -60,36 +59,34 @@ export default function HistorialScanner({ onBack }: HistorialScannerProps) {
     }
 
     try {
-      // Obtener historial y justificaciones en paralelo
-      const [histRes, justRes] = await Promise.all([
-        axios.get(`${baseURL}/tabs/Historial?run=${encodeURIComponent(scannedRun)}`),
-        axios.get(`${baseURL}/tabs/Justificaciones?run=${encodeURIComponent(scannedRun)}`)
-      ]);
+      const { data: historial, error } = await supabase
+        .from('historial_completo')
+        .select('*')
+        .eq('run', scannedRun)
+        .order('fecha', { ascending: false });
 
-      const historial = histRes.data.filter((item: any) => normalize(item.run) === scannedRun);
-      const justificaciones = justRes.data;
+      if (error) {
+        console.error('Error al obtener historial:', error);
+        Alert.alert('❌ Error', 'No se pudo obtener el historial');
+        setLoading(false);
+        setScanned(false);
+        return;
+      }
 
-      // Combinar y mapear
-      const registros: Registro[] = historial.map((item: any, idx: number) => {
-        const match = justificaciones.find((j: any) =>
-          normalize(j.fecha) === normalize(item.fecha) &&
-          normalize(j.hora)  === normalize(item.hora)  &&
-          normalize(j.tipo)  === normalize(item.tipo)
-        );
-
-        return {
-          id: idx,
-          run: scannedRun,
-          fecha: item.fecha,
-          tipo: item.tipo,
-          hora: item.hora,
-          nombre: item.nombre,
-          curso: item.curso,
-          esJustificado: !!match,
-          comentario: match?.comentario || '',
-          fechaJustificacion: match?.fecha_justificacion || '',
-        };
-      });
+      // Mapear a nuestro formato
+      const registros: Registro[] = (historial || []).map((item) => ({
+        registro_id: item.registro_id,
+        run: item.run,
+        fecha: item.fecha,
+        tipo: item.tipo,
+        hora: item.hora,
+        nombre: item.nombre,
+        curso: item.curso,
+        justificado: item.justificado,
+        comentario: item.comentario || undefined,
+        apoderado: item.apoderado || undefined,
+        fecha_justificacion: item.fecha_justificacion || undefined,
+      }));
 
       setRecords(registros);
 
@@ -128,6 +125,7 @@ export default function HistorialScanner({ onBack }: HistorialScannerProps) {
           <Text>Cargando...</Text>
         </View>
       )}
+
       <CameraView
         ref={cameraRef}
         style={{ flex: 1 }}
@@ -141,10 +139,10 @@ export default function HistorialScanner({ onBack }: HistorialScannerProps) {
         )}
         {records.map(r => (
           <View
-            key={r.id}
+            key={r.registro_id}
             style={[
               styles.item,
-              { backgroundColor: r.esJustificado ? '#e0f9e0' : '#fde0e0' }
+              { backgroundColor: r.justificado === 'Sí' ? '#e0f9e0' : '#fde0e0' }
             ]}
           >
             <View>
@@ -152,17 +150,17 @@ export default function HistorialScanner({ onBack }: HistorialScannerProps) {
                 {r.nombre} ({r.curso})
               </Text>
               <Text>
-                {r.esJustificado ? '✅ Justificado' : '❌ No justificado'} •{' '}
+                {r.justificado === 'Sí' ? '✅ Justificado' : '❌ No justificado'} •{' '}
                 {r.tipo} • {r.fecha} {r.hora}
               </Text>
-              {r.esJustificado && r.comentario ? (
+              {r.justificado === 'Sí' && r.apoderado ? (
                 <Text style={styles.detailText}>
-                  Apoderado: {r.comentario}
+                  Apoderado: {r.apoderado}
                 </Text>
               ) : null}
-              {r.esJustificado && r.fechaJustificacion ? (
+              {r.justificado === 'Sí' && r.fecha_justificacion ? (
                 <Text style={styles.detailText}>
-                  Fecha de justificación: {r.fechaJustificacion}
+                  Fecha de justificación: {r.fecha_justificacion}
                 </Text>
               ) : null}
             </View>
@@ -182,7 +180,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   modeText: { fontSize: 18, fontWeight: 'bold' },
-  loader: { position: 'absolute', top: '40%', alignSelf: 'center' },
+  loader: { position: 'absolute', top: '40%', alignSelf: 'center', zIndex: 100 },
   list: { maxHeight: 300, backgroundColor: '#fff' },
   empty: { textAlign: 'center', margin: 20 },
   item: {

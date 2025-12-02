@@ -1,32 +1,31 @@
+import { supabase } from '@/lib/supabase';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
-  Text,
-  View,
   Button,
-  StyleSheet,
+  Modal,
   Platform,
-  StatusBar,
   SafeAreaView,
   ScrollView,
-  ActivityIndicator,
+  StatusBar,
+  StyleSheet,
+  Text,
   TextInput,
-  Modal,
+  View,
 } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import axios from 'axios';
 
 interface JustifyScannerProps {
   onBack: () => void;
 }
 
 interface Registro {
-  id: number;
+  registro_id: string;
   run: string;
   fecha: string;
   tipo: string;
   hora: string;
-  justificado: boolean;
   nombre: string;
   curso: string;
 }
@@ -34,22 +33,12 @@ interface Registro {
 export default function JustifyScanner({ onBack }: JustifyScannerProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const [records, setRecords] = useState<Registro[]>([]);
-  const [run, setRun] = useState<string>('');
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [comment, setComment] = useState('');
   const [toJustify, setToJustify] = useState<Registro | null>(null);
   const cameraRef = useRef(null);
-
-  const sheetURL = 'https://api.sheetbest.com/sheets/70d1a0d5-f650-4be5-ac69-f0757b8ce9ae';
-
-  const normalize = (str: any) => (str || '').trim().toLowerCase();
-
-  useEffect(() => {
-    setRecords([]);
-    setRun('');
-  }, []);
 
   useEffect(() => {
     if (!permission?.granted) requestPermission();
@@ -59,55 +48,47 @@ export default function JustifyScanner({ onBack }: JustifyScannerProps) {
     setScanned(true);
     setLoading(true);
     setRecords([]);
-    setRun('');
 
     const lines = data.split('\n');
     const scannedRun = lines[0]?.replace('RUN: ', '').trim().toLowerCase();
+
     if (!scannedRun) {
       Alert.alert('❌ Error', 'RUN no válido');
       setLoading(false);
       setScanned(false);
       return;
     }
-    setRun(scannedRun);
 
     try {
-      const [histRes, justRes] = await Promise.all([
-        axios.get(`${sheetURL}/tabs/Historial?run=${encodeURIComponent(scannedRun)}`),
-        axios.get(`${sheetURL}/tabs/Justificaciones?run=${encodeURIComponent(scannedRun)}`)
-      ]);
+      const { data: pendientes, error } = await supabase
+        .from('historial_completo')
+        .select('*')
+        .eq('run', scannedRun)
+        .eq('justificado', 'No')
+        .order('fecha', { ascending: false });
 
-      const justKeys = new Set(
-        justRes.data
-          .filter((j: any) =>
-            normalize(j.run) === scannedRun &&
-            j.comentario && normalize(j.comentario) !== ''
-          )
-          .map((j: any) => `${normalize(j.fecha)}|${normalize(j.hora)}|${normalize(j.tipo)}`)
-      );
+      if (error) {
+        console.error('Error al obtener historial:', error);
+        Alert.alert('❌ Error', 'No se pudo obtener el historial');
+        setLoading(false);
+        setScanned(false);
+        return;
+      }
 
-      const filteredHist = histRes.data.filter(
-        (item: any) => normalize(item.run) === scannedRun
-      );
-
-      const regs: Registro[] = filteredHist
-        .filter((item: any) =>
-          !justKeys.has(`${normalize(item.fecha)}|${normalize(item.hora)}|${normalize(item.tipo)}`)
-        )
-        .map((item: any, idx: number) => ({
-          id: idx,
-          run: scannedRun,
-          fecha: item.fecha,
-          tipo: item.tipo,
-          hora: item.hora,
-          justificado: false,
-          nombre: item.nombre,
-          curso: item.curso,
-        }));
+      // Mapear a nuestro formato
+      const regs: Registro[] = (pendientes || []).map((item, idx) => ({
+        registro_id: item.registro_id,
+        run: item.run,
+        fecha: item.fecha,
+        tipo: item.tipo,
+        hora: item.hora,
+        nombre: item.nombre,
+        curso: item.curso,
+      }));
 
       setRecords(regs);
 
-      if (filteredHist.length > 0 && regs.length === 0) {
+      if (regs.length === 0) {
         Alert.alert('✅ Todos los registros están justificados');
       }
 
@@ -132,33 +113,35 @@ export default function JustifyScanner({ onBack }: JustifyScannerProps) {
       return;
     }
 
-    const fechaJustificacion = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-
     setModalVisible(false);
     setLoading(true);
+
     try {
-      await axios.post(`${sheetURL}/tabs/Justificaciones`, {
-        run: toJustify.run,
-        nombre: toJustify.nombre,
-        curso: toJustify.curso,
-        fecha: toJustify.fecha,
-        hora: toJustify.hora,
-        tipo: toJustify.tipo,
-        justificado: 'Sí',
-        comentario: comment.trim(),
-        fecha_justificacion: fechaJustificacion,
-      });
+      const { error } = await supabase
+        .from('justificaciones')
+        .insert({
+          registro_id: toJustify.registro_id,
+          apoderado: comment.trim(),
+          fecha_justificacion: new Date().toISOString().split('T')[0],
+        });
+
+      if (error) {
+        console.error('Error al justificar:', error);
+        Alert.alert('❌ Error al justificar');
+        setLoading(false);
+        return;
+      }
 
       setRecords(prev =>
-        prev.filter(r =>
-          !(r.fecha === toJustify.fecha && r.hora === toJustify.hora && r.tipo === toJustify.tipo)
-        )
+        prev.filter(r => r.registro_id !== toJustify.registro_id)
       );
+
       Alert.alert('✅ Justificado', `${toJustify.tipo} del ${toJustify.fecha}`);
     } catch (e) {
       console.error(e);
       Alert.alert('❌ Error al justificar');
     }
+
     setLoading(false);
   };
 
@@ -185,7 +168,7 @@ export default function JustifyScanner({ onBack }: JustifyScannerProps) {
       <ScrollView style={styles.list}>
         {records.length === 0 && !loading && <Text style={styles.empty}>No hay registros pendientes</Text>}
         {records.map(r => (
-          <View key={r.id} style={styles.item}>
+          <View key={r.registro_id} style={styles.item}>
             <View>
               <Text>{r.nombre} ({r.curso})</Text>
               <Text>{r.tipo} • {r.fecha} {r.hora}</Text>
@@ -225,7 +208,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between'
   },
   modeText: { fontSize: 18, fontWeight: 'bold' },
-  loader: { position: 'absolute', top: '40%', alignSelf: 'center' },
+  loader: { position: 'absolute', top: '40%', alignSelf: 'center', zIndex: 100 },
   list: { maxHeight: 300, backgroundColor: '#fff' },
   empty: { textAlign: 'center', margin: 20 },
   item: {

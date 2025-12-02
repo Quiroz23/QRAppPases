@@ -1,15 +1,43 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# ============================================
+# DEPENDENCIAS
+# ============================================
 node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
-# Expo
+# ============================================
+# EXPO / REACT NATIVE
+# ============================================
 .expo/
+.expo-shared/
 dist/
 web-build/
 expo-env.d.ts
 
-# Native
+# ============================================
+# NEXT.JS (Dashboard Web)
+# ============================================
+.next/
+out/
+build/
+*.next
+
+# ============================================
+# VARIABLES DE ENTORNO (CREDENCIALES)
+# ============================================
+.env
+.env.local
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ============================================
+# ARCHIVOS NATIVOS
+# ============================================
 .kotlin/
 *.orig.*
 *.jks
@@ -17,23 +45,110 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+*.keystore
 
-# Metro
+# Android
+android/app/build/
+android/.gradle/
+android/local.properties
+
+# iOS
+ios/Pods/
+ios/build/
+*.xcworkspace
+!default.xcworkspace
+*.xcuserstate
+
+# ============================================
+# METRO BUNDLER
+# ============================================
 .metro-health-check*
 
-# debug
+# ============================================
+# DEBUG / LOGS
+# ============================================
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
+logs/
 
+# ============================================
+# TYPESCRIPT
+# ============================================
+*.tsbuildinfo
+*.tsbuildinfo.*
+
+# ============================================
+# SISTEMA OPERATIVO
+# ============================================
 # macOS
 .DS_Store
 *.pem
+.AppleDouble
+.LSOverride
 
-# local env files
-.env*.local
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 
-# typescript
-*.tsbuildinfo
+# Linux
+*~
 
-app-example
+# ============================================
+# IDEs / EDITORES
+# ============================================
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# JetBrains (WebStorm, IntelliJ, etc.)
+.idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ============================================
+# TESTING
+# ============================================
+coverage/
+.nyc_output/
+*.lcov
+
+# ============================================
+# TEMPORALES / CACHE
+# ============================================
+*.tmp
+*.temp
+.cache/
+.parcel-cache/
+
+# ============================================
+# ARCHIVOS DE EJEMPLO / LEGACY
+# ============================================
+app-example/
+backend/
+
+# ============================================
+# DOCUMENTACIÓN TEMPORAL (NO SUBIR)
+# ============================================
+fix-reanimated.md
+
+# ============================================
+# ARCHIVOS SENSIBLES
+# ============================================
+# Credenciales de Supabase
+supabase-credentials.txt
+
+# Backups de base de datos
+*.sql.backup
+*.db.backup
+

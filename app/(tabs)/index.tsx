@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, Button, StyleSheet } from 'react-native';
-import QRScanner from './QRScanner';
+import { Button, StyleSheet, Text, View } from 'react-native';
+import HistorialScanner from './HistorialScanner';
 import JustifyScanner from './JustifyScanner';
-import HistorialScanner from './HistorialScanner'; // 👈 Nuevo componente
+import QRScanner from './QRScanner';
 
 export default function App() {
   const [mode, setMode] = useState<'Inasistencias' | 'Atrasos' | 'Justificar' | 'Historial' | null>(null);

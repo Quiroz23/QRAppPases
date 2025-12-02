@@ -1,24 +1,21 @@
-import React, { useEffect, useState, useRef } from 'react';
-import {
-  Text,
-  View,
-  Button,
-  Alert,
-  StyleSheet,
-  TextInput,
-  ActivityIndicator,
-} from 'react-native';
+import { supabase } from '@/lib/supabase';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import axios from 'axios';
 import moment from 'moment';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Button,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 interface QRScannerProps {
   mode: 'Inasistencias' | 'Atrasos';
   onBack: () => void;
 }
-
-const API_URL =
-  'https://script.google.com/macros/s/AKfycbzvn9hOX-VNtY5BFPlTsYaesSjSliBu9BfQ7WpddVuMvjvw4xzoay_B24t7hEa-Zqg9yg/exec';
 
 export default function QRScanner({ mode, onBack }: QRScannerProps) {
   const [permission, requestPermission] = useCameraPermissions();
@@ -52,28 +49,63 @@ export default function QRScanner({ mode, onBack }: QRScannerProps) {
     }
 
     try {
-      await axios.post(`${API_URL}?accion=agregar&sheet=Historial`, {
-        run,
-        nombre,
-        curso: `${grado}${curso}`,
-        fecha,
-        hora,
-        tipo: mode,
-        justificado: 'No',
-        comentario,
-      });
+      // upsert = "update or insert" (actualiza si existe, crea si no)
+      const { data: estudiante, error: estudianteError } = await supabase
+        .from('estudiantes')
+        .upsert(
+          {
+            run: run.toLowerCase(),
+            nombre,
+            curso: `${grado}${curso}`,
+          },
+          {
+            onConflict: 'run',
+            ignoreDuplicates: false,
+          }
+        )
+        .select()
+        .single();
 
-      Alert.alert('✅ Registro exitoso', `${nombre} fue registrado como ${mode.toLowerCase()}.`);
+      if (estudianteError) {
+        console.error('Error al crear/actualizar estudiante:', estudianteError);
+        Alert.alert('❌ Error', 'No se pudo registrar el estudiante');
+        setLoading(false);
+        setScanned(false);
+        return;
+      }
+
+      const { error: registroError } = await supabase
+        .from('registros')
+        .insert({
+          estudiante_id: estudiante.id,
+          fecha,
+          hora,
+          tipo: mode,
+          comentario: comentario || null,
+        });
+
+      if (registroError) {
+        console.error('Error al crear registro:', registroError);
+        Alert.alert('❌ Error', 'No se pudo registrar la asistencia');
+        setLoading(false);
+        setScanned(false);
+        return;
+      }
+
+      Alert.alert(
+        '✅ Registro exitoso',
+        `${nombre} fue registrado como ${mode.toLowerCase()}.`
+      );
     } catch (err) {
-      console.error(err);
-      Alert.alert('❌ Error al registrar');
+      console.error('Error inesperado:', err);
+      Alert.alert('❌ Error al registrar', 'Ocurrió un error inesperado');
     }
 
     setLoading(false);
     setTimeout(() => {
       setScanned(false);
-      onBack(); // 🔁 volver automáticamente al menú principal
-    }, 100); // espera 1.5 segundos para mostrar alerta antes de volver
+      onBack();
+    }, 100);
   };
 
   if (!permission?.granted) {
@@ -131,4 +163,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
- 
+
