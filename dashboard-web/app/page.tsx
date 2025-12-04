@@ -3,6 +3,7 @@
 import Estadisticas from '@/components/Estadisticas';
 import TablaRegistros from '@/components/TablaRegistros';
 import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 export default function Dashboard() {
@@ -49,6 +50,32 @@ export default function Dashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Link href="/import" className="flex items-center justify-center p-6 bg-blue-600 text-white rounded-xl shadow-lg hover:bg-blue-700 transition-all">
+            <div className="text-center">
+              <span className="text-3xl block mb-2">📂</span>
+              <span className="text-xl font-bold">Importar Alumnos</span>
+              <p className="text-blue-100 text-sm mt-1">Cargar Excel/CSV</p>
+            </div>
+          </Link>
+
+          <Link href="/credentials" className="flex items-center justify-center p-6 bg-green-600 text-white rounded-xl shadow-lg hover:bg-green-700 transition-all">
+            <div className="text-center">
+              <span className="text-3xl block mb-2">🪪</span>
+              <span className="text-xl font-bold">Credenciales</span>
+              <p className="text-green-100 text-sm mt-1">Imprimir QRs</p>
+            </div>
+          </Link>
+
+          <Link href="/students" className="flex items-center justify-center p-6 bg-purple-600 text-white rounded-xl shadow-lg hover:bg-purple-700 transition-all">
+            <div className="text-center">
+              <span className="text-3xl block mb-2">👥</span>
+              <span className="text-xl font-bold">Estudiantes</span>
+              <p className="text-purple-100 text-sm mt-1">Gestionar contactos</p>
+            </div>
+          </Link>
+        </div>
+
         <Estadisticas registros={registrosFiltrados} />
 
         <div className="bg-white rounded-lg shadow p-6 mb-8">

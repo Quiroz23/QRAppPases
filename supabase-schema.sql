@@ -4,6 +4,17 @@
 -- ============================================
 
 -- ============================================
+-- TABLA 0: Instituciones (Multi-tenancy)
+-- ============================================
+CREATE TABLE IF NOT EXISTS institutions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  plan_type VARCHAR(50) DEFAULT 'trial', -- 'trial', 'basic', 'pro'
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ============================================
 -- TABLA 1: Estudiantes
 -- Guarda la información básica de cada estudiante
 -- ============================================
@@ -12,14 +23,30 @@ CREATE TABLE IF NOT EXISTS estudiantes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   
   -- run: RUT del estudiante (único, no puede repetirse)
-  run VARCHAR(12) UNIQUE NOT NULL,
+  run VARCHAR(20) UNIQUE NOT NULL,
   
-  -- nombre: Nombre completo
-  nombre VARCHAR(100) NOT NULL,
+  -- Campos detallados según Excel
+  nombres VARCHAR(100) NOT NULL,
+  apellido_paterno VARCHAR(100) NOT NULL,
+  apellido_materno VARCHAR(100) NOT NULL,
+  nombre_completo VARCHAR(255) GENERATED ALWAYS AS (nombres || ' ' || apellido_paterno || ' ' || apellido_materno) STORED,
   
-  -- curso: Ejemplo "4° medioB"
-  curso VARCHAR(20) NOT NULL,
+  genero VARCHAR(10),
+  anio_escolar INT,
   
+  grado VARCHAR(50) NOT NULL, -- "1° medio"
+  letra VARCHAR(10) NOT NULL, -- "A"
+  curso VARCHAR(100) GENERATED ALWAYS AS (grado || ' ' || letra) STORED,
+  
+  -- Contactos de apoderados para notificaciones
+  telefono_apoderado VARCHAR(20),
+  nombre_apoderado VARCHAR(100),
+  telefono_apoderado_suplente VARCHAR(20),
+  nombre_apoderado_suplente VARCHAR(100),
+  
+  -- institution_id: A qué colegio pertenece
+  institution_id UUID REFERENCES institutions(id) DEFAULT NULL,
+
   -- created_at: Cuándo se creó este registro
   created_at TIMESTAMP DEFAULT NOW(),
   
@@ -51,6 +78,9 @@ CREATE TABLE IF NOT EXISTS registros (
   -- comentario: Observación opcional
   comentario TEXT,
   
+  -- institution_id: A qué colegio pertenece
+  institution_id UUID REFERENCES institutions(id) DEFAULT NULL,
+
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -71,6 +101,9 @@ CREATE TABLE IF NOT EXISTS justificaciones (
   -- fecha_justificacion: Cuándo se justificó
   fecha_justificacion DATE DEFAULT CURRENT_DATE,
   
+  -- institution_id: A qué colegio pertenece
+  institution_id UUID REFERENCES institutions(id) DEFAULT NULL,
+
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -83,7 +116,7 @@ SELECT
   r.id as registro_id,
   e.id as estudiante_id,
   e.run,
-  e.nombre,
+  e.nombre_completo as nombre, -- Alias para mantener compatibilidad con frontend
   e.curso,
   r.fecha,
   r.hora,
